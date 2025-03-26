@@ -1,0 +1,28 @@
+SELECT
+    depth,
+    exempt_building,
+    exempt_land,
+    frontage,
+    garage_spaces,
+    general_construction,
+    geographic_ward,
+    homestead_exemption,
+    house_number,
+    location,
+    market_value,
+    number_of_bathrooms,
+    number_of_bedrooms,
+    number_stories,
+    off_street_open,
+    parcel_number,
+    sale_price,
+    sale_date,
+    total_area,
+    total_livable_area,
+    year_built,
+    zip_code,
+    zoning
+FROM
+    pud
+WHERE
+    sale_date >= '1900-01-01' AND sale_date <= CURRENT_DATE
