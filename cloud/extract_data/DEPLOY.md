@@ -1,10 +1,10 @@
 ## Deploying
 
 
-#### Deploy cloud function: extract_phl_opa_properties
 #### Downloads opa property data into gcloud storage bucket (raw_data)
 _extract_phl_opa_properties_:
 
+#### Deploy cloud function: extract_phl_opa_properties
 ```shell
 gcloud functions deploy extract_phl_opa_properties `
 --gen2 `
@@ -25,10 +25,10 @@ gcloud functions deploy extract_phl_opa_properties `
 gcloud functions call extract_phl_opa_properties --region=us-east4
 ```
 
-#### Deploy cloud function: extract_phl_pwd_parcels
 #### Downloads pwd parcel data into gcloud storage bucket (raw_data)
 _extract_phl_pwd_parcels_:
 
+#### Deploy cloud function: extract_phl_pwd_parcels
 ```shell
 gcloud functions deploy extract_phl_pwd_parcels `
 --gen2 `
@@ -49,10 +49,10 @@ gcloud functions deploy extract_phl_pwd_parcels `
 gcloud functions call extract_phl_pwd_parcels --region=us-east4
 ```
 
-#### Deploy cloud function: extract_phl_opa_assessments
 #### Downloads opa assessment history data into gcloud storage bucket (raw_data)
 _extract_phl_opa_assessments_:
 
+#### Deploy cloud function: extract_phl_opa_assessments
 ```shell
 gcloud functions deploy extract_phl_opa_assessments `
 --gen2 `
