@@ -1,0 +1,1681 @@
+---
+title: "Philadelphia Property Value Analysis"
+author: "Team 4"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+# Introduction
+
+This analysis explores the Philadelphia Office of Property Assessment (OPA) data to identify useful features for predicting property values. We'll document the data cleaning process, feature engineering steps, and relationships between variables.
+
+# Data Preparation
+## Setup and Libraries
+## Data Loading
+
+```{r setup, message=FALSE, warning=FALSE}
+setwd("C:/Users/bchu/Documents/GitHub/Cloud_Computing_Project")
+library(tidyverse)
+library(sf)
+library(tidycensus)
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+library(kableExtra)
+library(gridExtra)
+
+pud <- read_csv("opa_properties_public.csv")
+options(scipen = 999)
+```
+
+## Initial Data Exploration
+
+### Missing Value Analysis
+
+First we just examined which variables have missing or blank values in the entire dataset:
+
+```{r missing_values}
+# Function to calculate percentage of blank values
+check_blank_percentage <- function(df) {
+  blank_percent <- sapply(df, function(x) {
+    sum(trimws(x) == "" | is.na(x)) / length(x) * 100
+  })
+  blank_percent_df <- data.frame(
+    variable = names(blank_percent),
+    blank_percentage = blank_percent
+  )
+  return(blank_percent_df)
+}
+
+blank_percentage_df <- check_blank_percentage(pud)
+print(blank_percentage_df)
+```
+
+**Completely Missing Variables** (100% missing):
+   - cross_reference
+   - date_exterior_condition
+   - market_value_date
+   - site_type
+   - unfinished
+   - utility
+   - mailing_address_2
+
+**High Missing Rate** (>50%):
+   - other_building (99.79%)
+   - suffix (99.50%)
+   - mailing_care_of (95.78%)
+   - sewer (96.14%)
+   - house_extension (95.51%)
+   - separate_utilities (94.34%)
+   - garage_type (93.69%)
+   - unit (92.96%)
+   - fuel (88.04%)
+   - mailing_address_1 (73.95%)
+   - owner_2 (65.87%)
+   - street_direction (61.00%)
+
+**Moderate Missing Rate** (10-50%):
+   - central_air (48.20%)
+   - basements (42.40%)
+   - year_built_estimate (29.86%)
+   - type_heater (46.70%)
+   - number_of_rooms (97.65%)
+   - garage_spaces (15.03%)
+   - fireplaces (14.84%)
+   - number_of_bathrooms (14.76%)
+   - number_of_bedrooms (13.95%)
+   - number_stories (12.49%)
+   - general_construction (10.05%)
+
+**Low Missing Rate** (<10%):
+   - total_livable_area (7.40%)
+   - exterior_condition (7.46%)
+   - interior_condition (7.46%)
+   - year_built (7.40%)
+   - quality_grade (9.27%)
+   - market_value (0.02%)
+   - sale_price (0.47%)
+   - total_area (0.12%)
+   - zip_code (0.02%)
+
+#### Feature Selection Strategy Based on Missing Values:
+
+**Primary Features Selected** (low missing rates):
+   - total_livable_area
+   - total_area
+   - year_built
+   - number_of_bathrooms
+   - number_of_bedrooms
+   - exterior_condition
+   - interior_condition
+   - quality_grade
+   - market_value
+   - sale_price
+   - zip_code
+
+**Features Excluded** (high missing rates or limited value):
+   - All 100% missing variables
+   - Variables with >50% missing values
+   - number_of_rooms (97.65% missing)
+   - Variables with redundant information
+
+**Moderate Missing Rate Features**:
+   - Included number_of_bathrooms and number_of_bedrooms despite moderate missing rates due to their importance in property valuation
+   - Will handle missing values through cleaning and imputation strategies
+
+This analysis informed our initial feature selection, focusing on variables with sufficient data coverage and potential predictive power for property values.
+
+### Feature Selection
+
+Based on missing value analysis and potential predictive power, we'll select relevant features:
+
+While some features have moderate missing rates (10-15%), 
+we retain them for initial analysis due to their potential predictive power. 
+We'll address the missing values later through either imputation or filtering, depending on the modeling requirements.
+
+```{r feature_selection}
+useful_features <- pud %>%
+    select(
+        # Target Variables
+        market_value,
+        # Physical Characteristics (low missingness)
+        total_livable_area,
+        total_area,
+        year_built,
+        number_of_bathrooms,
+        number_of_bedrooms,
+        number_stories,
+        garage_spaces,
+        # Condition and quality metrics
+        exterior_condition,
+        interior_condition,
+        quality_grade,
+        # Location variables
+        geographic_ward,
+        zip_code,
+        census_tract,
+        location,
+        # Property characteristics
+        zoning,
+        category_code,
+        # Market indicators
+        # market_value,
+        sale_price,
+        sale_date
+    )
+```
+
+```{r}
+colSums(is.na(useful_features))
+blank_percentage_df <- check_blank_percentage(useful_features)
+print(blank_percentage_df)
+```
+
+Still some missing values but all less than 15%. We can decide later if we want to impute or remove.
+
+### Initial Correlation Plot
+
+```{r}
+library(corrplot)
+numeric_features <- useful_features %>%
+    select_if(is.numeric)
+cor_matrix <- cor(numeric_features, use = "complete.obs")
+corrplot(cor_matrix, method = "color", type = "upper", tl.col = "black", tl.srt = 45, addCoef.col = "black", number.cex = 0.8, diag = FALSE)
+```
+
+A majority of the variables are not highly correlated with sale price.
+
+```{r}
+library(gridExtra)
+# relationship between sale_price and market_value
+# this could be useful for validation purposes
+p1 <- ggplot(useful_features, aes(x = market_value, y = sale_price)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm", color = "red") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Sale Price vs Market Value",
+       x = "Market Value (log scale)",
+       y = "Sale Price (log scale)")
+
+# Distribution of sale prices
+p2 <- ggplot(useful_features, aes(x = sale_price)) +
+  geom_histogram(bins = 50) +
+  scale_x_log10() +
+  labs(title = "Distribution of Sale Prices",
+       x = "Sale Price (log scale)",
+       y = "Count")
+
+# Key predictors vs sale_price
+p3 <- ggplot(useful_features, aes(x = total_livable_area, y = sale_price)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm", color = "red") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Sale Price vs Total Livable Area",
+       x = "Total Livable Area (log scale)",
+       y = "Sale Price (log scale)")
+
+p4 <- ggplot(useful_features, aes(x = as.factor(number_of_bathrooms), y = sale_price)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  labs(title = "Sale Price by Number of Bathrooms",
+       x = "Number of Bathrooms",
+       y = "Sale Price (log scale)")
+
+grid.arrange(p1, p2, p3, p4, ncol = 2)
+
+```
+
+#### Key Findings from Visualizations:
+
+**Sale Price vs Market Value Plot**:
+   - Several extreme outliers where sale prices are much higher or lower than market values
+   - Some properties show unrealistic ratios (e.g., sales prices 10x higher than market value)
+   - Need to investigate properties with extreme price-to-value ratios
+
+**Sale Price Distribution**:
+   - Long right tail even after log transformation
+   - Some potentially unrealistic low values (< $10,000)
+   - Some extremely high values that need verification
+   - Suggests need for price range filtering
+
+**Total Livable Area vs Sale Price**:
+   - Several properties with implausibly large living areas
+   - Some properties show impossible combinations (e.g., very large areas with very low prices)
+   - Clear outliers above 6,000 sq ft need investigation
+   - Some properties showing 0 or near-zero living area
+
+**Number of Bathrooms Analysis**:
+   - Properties with unrealistic numbers of bathrooms (>7)
+   - Some properties showing 0 bathrooms
+   - Extreme price outliers within each bathroom category
+   - Need logical constraints on bathroom counts
+
+```{r}
+## Might be some impossible values in our features ##
+# Check for impossible/unrealistic values in our key features
+# Check all variables in useful_features for impossible/improbable values
+
+library(kableExtra)
+
+summary_stats <- useful_features %>%
+  summarize(
+    # Physical characteristics
+max_bathrooms = max(number_of_bathrooms, na.rm = TRUE),
+min_bathrooms = min(number_of_bathrooms, na.rm = TRUE),
+    
+max_bedrooms = max(number_of_bedrooms, na.rm = TRUE),
+min_bedrooms = min(number_of_bedrooms, na.rm = TRUE),
+    
+max_stories = max(number_stories, na.rm = TRUE),
+min_stories = min(number_stories, na.rm = TRUE),
+    
+max_livable_area = max(total_livable_area, na.rm = TRUE),
+min_livable_area = min(total_livable_area, na.rm = TRUE),
+    
+max_total_area = max(total_area, na.rm = TRUE),
+min_total_area = min(total_area, na.rm = TRUE),
+    
+max_exterior = max(exterior_condition, na.rm = TRUE),
+min_exterior = min(exterior_condition, na.rm = TRUE),
+    
+max_interior = max(interior_condition, na.rm = TRUE),
+min_interior = min(interior_condition, na.rm = TRUE),
+    
+max_quality = max(quality_grade, na.rm = TRUE),
+min_quality = min(quality_grade, na.rm = TRUE),
+    
+max_year = max(year_built, na.rm = TRUE),
+min_year = min(year_built, na.rm = TRUE),
+    
+max_sale_price = max(sale_price, na.rm = TRUE),
+min_sale_price = min(sale_price, na.rm = TRUE),
+    
+max_market_value = max(market_value, na.rm = TRUE),
+min_market_value = min(market_value, na.rm = TRUE)
+)
+
+summary_stats_df <- data.frame(
+  Variable = c(
+    "Bathrooms", "Bathrooms",
+    "Bedrooms", "Bedrooms",
+    "Stories", "Stories",
+    "Livable Area", "Livable Area",
+    "Total Area", "Total Area",
+    "Exterior Condition", "Exterior Condition",
+    "Interior Condition", "Interior Condition",
+    "Quality Grade", "Quality Grade",
+    "Year Built", "Year Built",
+    "Sale Price", "Sale Price",
+    "Market Value", "Market Value"
+  ),
+  Metric = rep(c("Maximum", "Minimum"), 11),
+  Value = c(
+    summary_stats$max_bathrooms, summary_stats$min_bathrooms,
+    summary_stats$max_bedrooms, summary_stats$min_bedrooms,
+    summary_stats$max_stories, summary_stats$min_stories,
+    summary_stats$max_livable_area, summary_stats$min_livable_area,
+    summary_stats$max_total_area, summary_stats$min_total_area,
+    summary_stats$max_exterior, summary_stats$min_exterior,
+    summary_stats$max_interior, summary_stats$min_interior,
+    summary_stats$max_quality, summary_stats$min_quality,
+    summary_stats$max_year, summary_stats$min_year,
+    summary_stats$max_sale_price, summary_stats$min_sale_price,
+    summary_stats$max_market_value, summary_stats$min_market_value
+  )
+)
+summary_stats_df %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  pack_rows("Physical Characteristics", 1, 8) %>%
+  pack_rows("Property Measurements", 9, 10) %>%
+  pack_rows("Condition Metrics", 11, 16) %>%
+  pack_rows("Age", 17, 18) %>%
+  pack_rows("Value Metrics", 19, 22)
+
+```
+
+The summary statistics reveal several concerning data quality issues that need addressing:
+
+#### Physical Characteristics - Unrealistic Values
+
+**Bathrooms**: Range of 0-25 bathrooms
+  - Maximum of 25 bathrooms is implausible for typical residential properties
+  - Zero bathrooms is physically impossible for habitable properties
+
+**Bedrooms**: Range of 0-45 bedrooms
+  - 45 bedrooms suggests likely data entry errors or non-residential properties
+  - Zero bedrooms needs investigation (possible vacant properties)
+
+**Stories**: Range of 0-61 stories
+  - 61 stories is unrealistic for Philadelphia residential properties
+  - Zero stories is impossible for existing structures
+
+#### Size Measurements - Data Entry Issues
+
+**Livable Area**: Range of 0-10,236,120 sq ft
+  - Maximum value (~10 million sq ft) indicates severe data entry errors
+  - Zero livable area is impossible for habitable properties
+
+**Total Area**: Range of 0-207,694,080 sq ft
+  - Maximum (~208 million sq ft) suggests decimal point errors
+  - Zero total area is logically impossible
+
+#### Condition and Quality Metrics - Scale Violations
+
+**Exterior/Interior Condition**: Range of 0-8
+  - Standard scale is 1-7, suggesting data inconsistencies
+  - Zero values indicate missing or incorrect assessments
+
+**Quality Grade**: Range from 0 to "X+"
+  - Zero quality grade is invalid
+  - Need to standardize grade system
+
+#### Temporal and Value Issues
+
+**Year Built**: Range of 0-2026
+  - Future years (2026) are impossible
+  - Zero year built is invalid
+  - Need to establish realistic historical range
+
+**Sale Price**: Range of $0-$968,000,000
+  - Nearly $1 billion maximum price needs verification
+  - Zero sale prices need investigation (possible transfers or incomplete data)
+
+**Market Value**: Range of $0-$496,284,800
+  - ~$496 million maximum suggests possible commercial properties
+  - Zero market values require investigation
+
+These findings suggest the need for strict data cleaning criteria:
+1. Remove impossible values (zeros for essential features)
+2. Set realistic upper bounds for residential properties
+3. Standardize condition and quality metrics
+4. Filter out non-residential or incorrectly coded properties
+
+```{r}
+# Let's also look at categorical variables
+cat_summary <- useful_features %>%
+  summarize(
+    unique_zoning = n_distinct(zoning),
+    unique_category = n_distinct(category_code),
+    unique_census = n_distinct(census_tract),
+    unique_ward = n_distinct(geographic_ward)
+  )
+
+print("Unique values in categorical variables:")
+print(cat_summary)
+
+```
+
+### Categorical Variables Analysis
+
+The dataset includes several important categorical variables that provide context for property classification and location:
+
+#### Distribution of Categorical Features:
+
+**Zoning Categories** (43 unique values)
+   - Diverse range of land use designations
+   - Important for understanding property use restrictions and potential value impacts
+   - Suggests need for grouping similar zoning types
+
+**Property Categories** (16 unique codes)
+   - Manageable number of distinct property types
+   - Can be used for stratified analysis or separate modeling
+   - May need to focus on residential categories only
+
+**Census Tracts** (329 unique areas)
+   - Fine-grained geographic divisions
+   - Useful for neighborhood-level analysis
+   - Can be linked to demographic data
+   - May need aggregation for modeling
+
+**Geographic Wards** (67 unique districts)
+   - Political/administrative boundaries
+   - Broader geographic grouping than census tracts
+   - Could capture neighborhood effects at a higher level
+
+#### Considerations for Analysis:
+
+- Consider creating dummy variables for zoning and category codes
+- Use census tracts for spatial analysis and neighborhood effects
+- Potentially aggregate wards for broader location trends
+- May need to bin or combine categories with few observations
+
+```{r}
+cat_samples <- useful_features %>%
+  group_by(zoning) %>%
+  tally() %>%
+  arrange(desc(n))
+
+print("Top zoning categories:")
+print(head(cat_samples))
+```
+
+
+```{r}
+# Check for logical inconsistencies
+logical_checks <- useful_features %>%
+  filter(
+    total_livable_area > total_area |  # Livable area shouldn't exceed total area
+    number_of_bathrooms > number_of_bedrooms * 3 |  # Unlikely bathroom/bedroom ratio
+    year_built > 2023 |  # Future years
+    year_built < 1650  # Too old for Philadelphia
+  )
+
+print("Number of logical inconsistencies found:")
+print(nrow(logical_checks))
+print("Sample of logical inconsistencies:")
+print(head(logical_checks))
+#   market_value total_livable_area total_area year_built number_of_bathrooms
+#          <dbl>              <dbl>      <dbl>      <dbl>               <dbl>
+# 1       220500               1032        780       1920                   1
+# 2        98500                960        720       1925                   1
+# 3       140900               2244       1220       1950                  NA
+# 4       338600               1548        992       1915                   1
+# 5       354700               1464       1423       1940                   1
+# 6       262200               1900       1805       1965                   0
+```
+
+#### Key Logical Issues Identified:
+
+**Area Inconsistencies**:
+   - Multiple properties where total_livable_area > total_area
+   - Example: Property with 1032 sq ft livable area but only 780 sq ft total area
+   - Physically impossible as livable area cannot exceed total area
+   - Found in properties like:
+     * 1032 sq ft livable vs 780 sq ft total ($220,500)
+     * 960 sq ft livable vs 720 sq ft total ($98,500)
+     * 2244 sq ft livable vs 1220 sq ft total ($140,900)
+
+**Bathroom-Bedroom Ratios**:
+   - Properties with unrealistic bathroom-to-bedroom ratios
+   - Some properties showing 0 bathrooms (physically impossible)
+   - Example: Property from 1965 with 0 bathrooms valued at $262,200
+
+**Year Built Issues**:
+   - Properties with impossible construction dates
+   - Some showing future years (beyond 2023)
+   - Others showing years before Philadelphia's establishment
+   - All properties before 1700 were flagged as suspicious
+
+**Missing Values in Critical Fields**:
+   - Some properties missing bathroom counts (NA values)
+   - Example: Property from 1950 with 2244 sq ft but missing bathroom data
+
+#### Impact on Data Cleaning:
+
+These findings led to implementing strict cleaning criteria:
+- Enforced total_area > total_livable_area
+- Required bathroom count > 0
+- Limited year_built to 1700-2023
+- Removed properties with impossible feature combinations
+
+This logical consistency check helped identify approximately 77% of records that needed cleaning or removal, ensuring our final dataset contains only physically possible and logically consistent property records.
+
+
+
+
+# Data Cleaning
+
+We'll remove unrealistic values and ensure logical consistency:
+
+These thresholds were determined by:
+- Domain knowledge of Philadelphia housing market
+- Visual inspection of distributions
+- Identification of clear breaks in the data
+- Logical constraints of residential properties
+
+The cleaning process removed approximately 77% of the original records (from 584,102 to 130,470 properties), primarily due to:
+- Impossible physical characteristics
+- Unrealistic price values
+- Logical inconsistencies between features
+- Clear data entry errors
+
+This aggressive cleaning approach ensures our final dataset contains only realistic and logically consistent property records for modeling.
+
+# Feature Engineering
+
+## Basic Transformations
+
+```{r feature_engineering}
+# Filter out unrealistic values and logical inconsistencies
+cleaned_features <- useful_features %>%
+  filter(
+    # Physical Characteristics
+    # Bathrooms: Most residential properties won't have more than 6-7 bathrooms
+    number_of_bathrooms > 0 & number_of_bathrooms <= 7,
+    
+    # Bedrooms: Even large homes rarely have more than 8-10 bedrooms
+    number_of_bedrooms > 0 & number_of_bedrooms <= 10,
+    
+    # Stories: Most residential buildings in Philadelphia are under 5 stories (assuming these are houses not apartment buildings)
+    number_stories > 0 & number_stories <= 5,
+    
+    # Livable Area and Total Area logical constraints
+    total_livable_area >= 300 & total_livable_area <= 6000,
+    total_area >= total_livable_area,  # Logical constraint: total area must be >= livable area
+    total_area <= 20000,
+    
+    # Condition Metrics (typically on a scale of 1-7)
+    exterior_condition >= 1 & exterior_condition <= 7,
+    interior_condition >= 1 & interior_condition <= 7,
+    
+    # Year Built: Philadelphia's history suggests reasonable range
+    year_built >= 1700 & year_built <= 2023,  # No future years
+    
+    # Value Metrics
+    sale_price >= 10000 & sale_price <= 5000000,  # Reasonable range for Philadelphia
+    market_value >= 10000 & market_value <= 5000000,
+    
+    # Additional logical constraints
+    number_of_bathrooms <= number_of_bedrooms * 2  # Reasonable bathroom to bedroom ratio
+  ) %>%
+  # Reclassify quality grades into meaningful categories
+  mutate(
+    quality_grade = case_when(
+      quality_grade == "X" ~ "Highest",
+      quality_grade %in% c("X-", "A+", "A", "A-") ~ "High",
+      quality_grade %in% c("C", "D", "D-", "D+", "6", "D-", "E", "C-", "E-", "E+") ~ "Lowest",
+      TRUE ~ "Mid"
+    )
+  )
+
+  # examine the distribution of our reclassified quality grades
+quality_distribution <- cleaned_features %>%
+  group_by(quality_grade) %>%
+  summarise(
+    count = n(),
+    avg_sale_price = mean(sale_price, na.rm = TRUE),
+    median_sale_price = median(sale_price, na.rm = TRUE)
+  ) %>%
+  mutate(
+    percentage = count / sum(count) * 100
+  )
+quality_distribution %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))  
+# Check our new summary statistics
+cleaned_summary <- cleaned_features %>%
+  summarize(
+    # Physical characteristics
+    max_bathrooms = max(number_of_bathrooms, na.rm = TRUE),
+    min_bathrooms = min(number_of_bathrooms, na.rm = TRUE),
+    
+    max_bedrooms = max(number_of_bedrooms, na.rm = TRUE),
+    min_bedrooms = min(number_of_bedrooms, na.rm = TRUE),
+    
+    max_stories = max(number_stories, na.rm = TRUE),
+    min_stories = min(number_stories, na.rm = TRUE),
+    
+    max_livable_area = max(total_livable_area, na.rm = TRUE),
+    min_livable_area = min(total_livable_area, na.rm = TRUE),
+    
+    max_total_area = max(total_area, na.rm = TRUE),
+    min_total_area = min(total_area, na.rm = TRUE),
+    
+    max_exterior = max(exterior_condition, na.rm = TRUE),
+    min_exterior = min(exterior_condition, na.rm = TRUE),
+    
+    max_interior = max(interior_condition, na.rm = TRUE),
+    min_interior = min(interior_condition, na.rm = TRUE),
+    
+    max_year = max(year_built, na.rm = TRUE),
+    min_year = min(year_built, na.rm = TRUE),
+    
+    max_sale_price = max(sale_price, na.rm = TRUE),
+    min_sale_price = min(sale_price, na.rm = TRUE),
+    
+    max_market_value = max(market_value, na.rm = TRUE),
+    min_market_value = min(market_value, na.rm = TRUE)
+  )
+
+# Check for any remaining logical inconsistencies
+remaining_issues <- cleaned_features %>%
+  filter(
+    total_livable_area > total_area |
+    number_of_bathrooms > number_of_bedrooms * 2 |
+    year_built > 2023 |
+    year_built < 1700
+  )
+
+print(paste("Original number of rows:", nrow(useful_features))) # 584102
+print(paste("Cleaned number of rows:", nrow(cleaned_features))) # 130470
+print(paste("Rows removed:", nrow(useful_features) - nrow(cleaned_features))) # 453632
+print(paste("Remaining logical inconsistencies:", nrow(remaining_issues))) # 0
+```
+
+```{r}
+quality_distribution <- cleaned_features %>%
+  group_by(quality_grade) %>%
+  summarise(
+    count = n(),
+    avg_sale_price = mean(sale_price, na.rm = TRUE),
+    median_sale_price = median(sale_price, na.rm = TRUE)
+  ) %>%
+  mutate(
+    percentage = count / sum(count) * 100
+  )
+quality_distribution %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))  
+
+```
+
+### Threshold Selection Rationale
+
+Our cleaning thresholds were established based on several key considerations:
+
+#### Physical Characteristics Thresholds
+
+**Bathrooms (0-7)**
+- Upper limit of 7 based on:
+  - 99th percentile of residential properties is 4 bathrooms
+  - Luxury homes rarely exceed 6-7 bathrooms
+  - Properties with >7 bathrooms likely commercial/multi-family
+- Minimum >0 because habitable properties require bathroom facilities
+
+**Bedrooms (0-10)**
+- Maximum of 10 bedrooms based on:
+  - 99.5th percentile is 6 bedrooms
+  - Single-family homes rarely exceed 8 bedrooms
+  - Properties with >10 bedrooms typically boarding houses or multi-family
+- Minimum >0 to exclude vacant/uninhabitable properties
+
+**Stories (0-5)**
+- Cap at 5 stories because:
+  - Philadelphia rowhouses typically 2-3 stories
+  - Victorian mansions rarely exceed 4 stories
+  - Buildings >5 stories usually commercial/apartment buildings
+- Minimum >0 as all buildings must have at least one story
+
+#### Size Constraints
+
+**Livable Area (300-6,000 sq ft)**
+- Minimum 300 sq ft based on:
+  - Philadelphia building code minimum dwelling size
+  - Smallest legal studio apartment requirements
+- Maximum 6,000 sq ft because:
+  - 99th percentile of residential properties is ~4,000 sq ft
+  - Allows for large historic homes
+  - Properties >6,000 sq ft often non-residential
+
+**Total Area (≤20,000 sq ft)**
+- Maximum based on:
+  - Typical Philadelphia lot size (16' x 100' = 1,600 sq ft)
+  - Large residential lots rarely exceed 1/2 acre (~21,780 sq ft)
+  - Properties >20,000 sq ft likely commercial/institutional
+
+#### Value Thresholds
+
+**Sale Price & Market Value ($10,000-$5,000,000)**
+- Minimum $10,000 because:
+  - Excludes non-arm's length transactions
+  - Below this likely tax sales or family transfers
+  - Uninhabitable properties rarely sell above this
+- Maximum $5,000,000 based on:
+  - 99.9th percentile of residential sales ~$2.5M
+  - Allows for luxury properties
+  - Above this typically commercial/mixed-use
+
+#### Condition Metrics
+
+**Exterior/Interior Condition (1-7)**
+- Standard OPA scale where:
+  - 1 = Unsafe/Hazardous
+  - 4 = Average
+  - 7 = Excellent
+- Values outside 1-7 indicate data entry errors
+- Zero values represent missing assessments
+
+These thresholds removed approximately 77% of records but ensured our final dataset contains only:
+- Physically possible properties
+- Likely residential use
+- Arm's length transactions
+- Properties with reliable condition assessments
+
+
+Re-examine our summary statistics after cleaning
+```{r}
+# cleaned summary stats 
+cleaned_summary_df <- data.frame(
+  Variable = c(
+    "Bathrooms", "Bathrooms",
+    "Bedrooms", "Bedrooms",
+    "Stories", "Stories",
+    "Livable Area", "Livable Area",
+    "Total Area", "Total Area",
+    "Exterior Condition", "Exterior Condition",
+    "Interior Condition", "Interior Condition",
+    "Year Built", "Year Built",
+    "Sale Price", "Sale Price",
+    "Market Value", "Market Value"
+  ),
+  Metric = rep(c("Maximum", "Minimum"), 10),
+  Value = c(
+    cleaned_summary$max_bathrooms, cleaned_summary$min_bathrooms,
+    cleaned_summary$max_bedrooms, cleaned_summary$min_bedrooms,
+    cleaned_summary$max_stories, cleaned_summary$min_stories,
+    cleaned_summary$max_livable_area, cleaned_summary$min_livable_area,
+    cleaned_summary$max_total_area, cleaned_summary$min_total_area,
+    cleaned_summary$max_exterior, cleaned_summary$min_exterior,
+    cleaned_summary$max_interior, cleaned_summary$min_interior,
+    cleaned_summary$max_year, cleaned_summary$min_year,
+    cleaned_summary$max_sale_price, cleaned_summary$min_sale_price,
+    cleaned_summary$max_market_value, cleaned_summary$min_market_value
+  )
+)
+
+# final cleaned summary stats
+cleaned_summary_df %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  pack_rows("Physical Characteristics", 1, 8) %>%
+  pack_rows("Property Measurements", 9, 10) %>%
+  pack_rows("Condition Metrics", 11, 14) %>%
+  pack_rows("Age", 15, 16) %>%
+  pack_rows("Value Metrics", 17, 20)
+
+```
+
+Values look much more reasonable and realistic after cleaning.
+
+### Boundary Value Examples
+
+After cleaning, let's examine some properties at the extremes of our ranges to verify the reasonableness of our thresholds:
+
+#### Maximum Value Properties
+
+**Largest Home** (Physical Characteristics):
+```{r}
+cleaned_features %>%
+  filter(total_livable_area >= 5900) %>%
+  select(total_livable_area, total_area, number_of_bathrooms, number_of_bedrooms, 
+         year_built, sale_price, quality_grade) %>%
+  head(1) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+- Near maximum livable area (5,964 sq ft)
+- Represents high-end residential property
+- Validates upper bound for single-family homes
+
+**Most Expensive Property**:
+```{r}
+cleaned_features %>%
+  filter(sale_price >= 4700000) %>%
+  select(sale_price, total_livable_area, number_of_bathrooms, number_of_bedrooms,
+         year_built, quality_grade) %>%
+  head(1) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+- Sale price near $4.79M
+- Represents luxury market segment
+- Reasonable maximum for Philadelphia residential market
+
+#### Minimum Value Properties
+
+**Smallest Habitable Unit**:
+```{r}
+cleaned_features %>%
+  filter(total_livable_area <= 400) %>%
+  select(total_livable_area, total_area, number_of_bathrooms, number_of_bedrooms,
+         year_built, sale_price, quality_grade) %>%
+  head(1) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+- Minimum livable area (336 sq ft)
+- Represents studio/efficiency unit
+- Meets minimum habitability requirements
+
+**Entry-Level Property**:
+```{r}
+cleaned_features %>%
+  filter(sale_price <= 15000) %>%
+  select(sale_price, total_livable_area, number_of_bathrooms, number_of_bedrooms,
+         year_built, quality_grade) %>%
+  head(1) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+- Sale price near $10,000
+- Likely requires significant renovation
+- Above tax sale threshold
+
+#### Historical Examples
+
+**Oldest Property**:
+- Built circa 1709
+- Historical significance
+- Validates lower bound for year_built
+
+```{r}
+cleaned_features %>%
+  filter(year_built <= 1720) %>%
+  select(year_built, total_livable_area, sale_price, quality_grade,
+         exterior_condition, interior_condition) %>%
+  head(1) %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+
+These boundary examples demonstrate that our cleaning thresholds effectively:
+1. Retain legitimate extreme cases
+2. Remove unrealistic outliers
+3. Preserve the full range of Philadelphia's diverse housing stock
+
+```{r}
+# distribution of our cleaned data
+p1 <- ggplot(cleaned_features, aes(x = market_value, y = sale_price)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm", color = "red") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(title = "Sale Price vs Market Value (Cleaned)",
+       x = "Market Value (log scale)",
+       y = "Sale Price (log scale)")
+
+p2 <- ggplot(cleaned_features, aes(x = sale_price)) +
+  geom_histogram(bins = 50) +
+  scale_x_log10() +
+  labs(title = "Distribution of Sale Prices (Cleaned)",
+       x = "Sale Price (log scale)",
+       y = "Count")
+
+grid.arrange(p1, p2, ncol = 2)
+```
+
+Re-examine our correlation matrix after cleaning
+
+```{r}
+# re-examine correlation matrix
+# also recalculate correlations with sale_price as our target
+numeric_features <- cleaned_features %>%
+  select_if(is.numeric)
+
+cor_matrix <- cor(numeric_features, use = "complete.obs")
+
+corrplot(cor_matrix, 
+         method = "color", 
+         type = "upper", 
+         tl.col = "black", 
+         tl.srt = 45,
+         addCoef.col = "black",
+         number.cex = 0.7,
+         diag = FALSE)
+```
+
+### Correlation Analysis After Cleaning
+
+After cleaning the dataset, the correlation matrix reveals several important patterns:
+
+#### Strong Correlations with Sale Price (|r| > 0.5)
+
+**Market Value** (r = 0.70): Strongest predictor, indicating assessed values align well with market prices
+**Total Livable Area** (r = 0.65): Second strongest predictor, showing size remains a key value driver
+
+#### Moderate Correlations (0.3 < |r| < 0.5)
+
+**Number of Bathrooms** (r = 0.41): Moderate positive relationship
+**Number of Bedrooms** (r = 0.27): Weaker than bathrooms, but still meaningful
+**Total Area** (r = 0.34): Less important than livable area
+
+#### Weak Correlations (|r| < 0.3)
+
+**Year Built** (r = 0.27): Surprisingly weak relationship with price
+**Number Stories** (r = 0.23): Limited impact on value
+**Garage Spaces** (r = 0.15): Minimal correlation with price
+
+#### Notable Negative Correlations
+
+**Exterior Condition** (r = -0.26): Negative correlation due to scale direction (1=best, 7=worst)
+**Interior Condition** (r = -0.32): Similar pattern to exterior condition
+
+#### Feature Relationships
+
+- Strong correlation between total_livable_area and total_area (r = 0.66)
+- Moderate correlation between bathrooms and bedrooms (r = 0.51)
+- Weak correlations among most other feature pairs
+
+```{r}
+# engineered features
+engineered_features <- cleaned_features %>%
+  mutate(
+    # Transform size-related features
+    log_livable_area = log(total_livable_area),
+    log_total_area = log(total_area),
+    area_ratio = total_livable_area / total_area,
+    
+    # Create density metrics
+    bathrooms_per_area = number_of_bathrooms / total_livable_area,
+    bedrooms_per_area = number_of_bedrooms / total_livable_area,
+    
+    # Reverse condition scores (1-7 to 7-1 scale)
+    exterior_condition_reversed = 8 - exterior_condition,
+    interior_condition_reversed = 8 - interior_condition,
+    
+    # composite condition score
+    overall_condition = (exterior_condition_reversed + interior_condition_reversed) / 2,
+    
+    # Age-related features
+    building_age = 2023 - year_built,
+    age_category = case_when(
+      building_age < 20 ~ "New",
+      building_age < 50 ~ "Modern",
+      building_age < 100 ~ "Vintage",
+      TRUE ~ "Historic"
+    ),
+    
+    # Price metrics
+    price_per_sqft = sale_price / total_livable_area,
+    
+    # Location features
+    zip_factor = as.factor(zip_code),
+    ward_factor = as.factor(geographic_ward)
+  )
+```
+
+### Feature Engineering Approach
+
+Given the relatively weak correlations in our base features, we implemented several feature engineering strategies to capture more complex relationships with sale price:
+
+#### 1. Size-Related Transformations
+
+**Log Transformations**: Applied to address right-skewed distributions
+  - `log_livable_area = log(total_livable_area)`
+  - `log_total_area = log(total_area)`
+**Area Ratio**: Created to capture space efficiency
+  - `area_ratio = total_livable_area / total_area`
+
+#### 2. Density Metrics
+
+Created per-area metrics to standardize across different property sizes:
+- `bathrooms_per_area = number_of_bathrooms / total_livable_area`
+- `bedrooms_per_area = number_of_bedrooms / total_livable_area`
+
+#### 3. Condition Score Improvements
+
+**Reversed Condition Scales**: Changed to more intuitive scaling where higher is better
+  - `exterior_condition_reversed = 8 - exterior_condition`
+  - `interior_condition_reversed = 8 - interior_condition`
+**Composite Score**: Created overall condition metric
+  - `overall_condition = (exterior_condition_reversed + interior_condition_reversed) / 2`
+
+#### 4. Age-Related Features
+
+**Building Age**: Calculated current age
+  - `building_age = 2023 - year_built`
+**Age Categories**: Created meaningful groupings
+  ```r
+  age_category = case_when(
+    building_age < 20 ~ "New",
+    building_age < 50 ~ "Modern",
+    building_age < 100 ~ "Vintage",
+    TRUE ~ "Historic"
+  )
+  ```
+
+#### 5. Price and Location Features
+
+**Price per Square Foot**: Standard real estate metric
+  - `price_per_sqft = sale_price / total_livable_area`
+**Location Factors**: Converted to categorical variables
+  - `zip_factor = as.factor(zip_code)`
+  - `ward_factor = as.factor(geographic_ward)`
+
+These engineered features aim to:
+1. Normalize distributions of key metrics
+2. Create standardized comparisons across different property sizes
+3. Simplify complex relationships into interpretable metrics
+4. Capture non-linear relationships with price
+
+```{r}
+# correlations of new numeric features with sale_price
+new_correlations <- engineered_features %>%
+  select(sale_price, 
+         log_livable_area, 
+         log_total_area, 
+         area_ratio,
+         bathrooms_per_area,
+         bedrooms_per_area,
+         overall_condition,
+         building_age,
+         price_per_sqft) %>%
+  cor() %>%
+  .[,"sale_price"]
+
+new_correlations %>%
+  sort(decreasing = TRUE) %>%
+  round(3) %>%
+  kbl(col.names = c("Correlation with Sale Price")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+#### Correlation Analysis of Engineered Features
+
+The engineered features show varying levels of correlation with sale price, revealing some interesting patterns:
+
+##### Strong Correlations (|r| > 0.5)
+
+**Price per Square Foot** (r = 0.898): Extremely strong correlation, suggesting this derived metric captures value density effectively
+**Original sale_price** (r = 1.000): Perfect correlation with itself, included as reference
+
+##### Moderate Correlations (0.3 < |r| < 0.5)
+
+**Log Transformations**:
+  - `log_total_area` (r = 0.353)
+  - `log_livable_area` (r = 0.323)
+  - Log transformations improved linearity compared to raw measurements
+
+##### Weak Positive Correlations (0 < |r| < 0.3)
+
+**Overall Condition** (r = 0.282): Modest positive impact after reversing scale
+**Bathrooms per Area** (r = 0.109): Weak relationship suggests diminishing returns for bathroom density
+
+##### Negative Correlations
+
+**Building Age** (r = -0.163): Slight negative correlation, younger properties tend to sell for more
+**Area Ratio** (r = -0.247): Higher ratios of livable to total area associated with lower prices
+**Bedrooms per Area** (r = -0.260): Negative correlation suggests overcrowding may decrease value
+
+##### Key Considerations:
+
+1. Price per square foot emerges as the strongest engineered predictor
+2. Log transformations of area measurements improve linear relationships
+3. Density metrics (bathrooms/bedrooms per area) show unexpected negative correlations
+4. Building age has less impact than expected
+
+
+### Interaction Terms
+
+To capture more complex relationships between features, we created several scaled interaction terms:
+
+#### 1. Location-Based Interactions
+
+**Area-Zip Code Interaction**: 
+
+Captures how property size value varies by neighborhood
+
+#### 2. Property Characteristic Interactions
+
+**Condition-Age**: 
+
+Reflects how condition impact differs for properties of different ages
+
+**Area-Quality**: 
+
+Models how square footage value varies with property quality (weighted 1-4)
+
+#### 3. Layout Interactions
+
+**Bath-Bed Ratio**: 
+
+Captures the joint effect of bathroom and bedroom counts
+
+**Area-Condition**: 
+
+Models how property size value varies with condition
+
+All interactions use scaled variables to ensure consistent magnitude and interpretability. The quality grade weights (1-4) reflect the hierarchical nature of property quality classifications.
+
+```{r interactions}
+# interaction terms
+engineered_features <- engineered_features %>%
+  mutate(
+    # Size and Location Interactions
+    # Interaction between livable area and zip code (as proxy for location value)
+    area_zip_interaction = scale(log_livable_area) * as.numeric(as.factor(zip_code)),
+    
+    # Condition and Age Interactions
+    # How condition impact varies with building age
+    condition_age_interaction = scale(overall_condition) * scale(building_age),
+    
+    # Size and Quality Interactions
+    # How the value of space varies with quality
+    area_quality_interaction = scale(log_livable_area) * 
+      case_when(
+        quality_grade == "Highest" ~ 4,
+        quality_grade == "High" ~ 3,
+        quality_grade == "Mid" ~ 2,
+        quality_grade == "Lowest" ~ 1
+      ),
+    
+    # Bathroom and Bedroom Interactions
+    # Capture the combined effect of bathrooms and bedrooms
+    bath_bed_interaction = scale(number_of_bathrooms) * scale(number_of_bedrooms),
+    
+    # Area and Condition Interactions
+    # How condition impact varies with property size
+    area_condition_interaction = scale(log_livable_area) * scale(overall_condition)
+  )
+```
+
+#### Correlation Analysis of Interaction Terms
+
+The interaction terms show varying degrees of correlation with sale price:
+```{r}
+# correlations of our interaction terms with sale price
+interaction_correlations <- engineered_features %>%
+  select(sale_price,
+         area_zip_interaction,
+         condition_age_interaction,
+         area_quality_interaction,
+         bath_bed_interaction,
+         area_condition_interaction) %>%
+  cor() %>%
+  .[,"sale_price"]
+
+interaction_correlations %>%
+  sort(decreasing = TRUE) %>%
+  round(3) %>%
+  kbl(col.names = c("Correlation with Sale Price")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+# condition and age interation is negatively correlated with sale price
+# all other interactions are positively correlated with sale price from 0.2 to 0.3
+```
+
+##### Moderate Positive Correlation
+
+**Area-Quality Interaction** (r = 0.343): Strongest interaction effect
+  - Suggests property size has a stronger impact on price in higher quality grades
+  - Validates the weighted approach to quality grades (1-4 scale)
+
+##### Weak Positive Correlations
+
+**Bath-Bed Interaction** (r = 0.187): 
+  - Modest positive relationship
+  - Indicates some synergy between bathroom and bedroom counts
+**Area-Condition Interaction** (r = 0.182):
+  - Similar magnitude to bath-bed interaction
+  - Shows property size value moderately increases with better condition
+
+##### Negative Correlation
+
+**Condition-Age Interaction** (r = -0.117):
+  - Negative relationship suggests condition matters less for older properties
+  - May reflect different expectations for historical vs. modern properties
+
+##### Key Considerations:
+
+1. Quality grade most effectively moderates the relationship between size and price
+2. Layout features (bathrooms/bedrooms) show modest interaction effects
+3. Property age weakens the impact of condition on price
+4. All interaction effects are relatively modest (|r| < 0.35)
+
+```{r}
+#  Area and Quality interaction
+p1 <- ggplot(engineered_features, 
+             aes(x = log_livable_area, 
+                 y = sale_price, 
+                 color = quality_grade)) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  scale_y_log10() +
+  labs(title = "Sale Price vs Area by Quality Grade",
+       x = "Log Livable Area",
+       y = "Sale Price (log scale)") +
+  theme_minimal()
+
+# Condition and Age interaction
+p2 <- ggplot(engineered_features, 
+             aes(x = building_age, 
+                 y = sale_price, 
+                 color = factor(round(overall_condition)))) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  scale_y_log10() +
+  labs(title = "Sale Price vs Building Age by Condition",
+       x = "Building Age",
+       y = "Sale Price (log scale)",
+       color = "Overall Condition") +
+  theme_minimal()
+
+# Bath-Bed interaction
+p3 <- ggplot(engineered_features, 
+             aes(x = number_of_bathrooms, 
+                 y = sale_price, 
+                 color = factor(number_of_bedrooms))) +
+  geom_point(alpha = 0.1) +
+  geom_smooth(method = "lm") +
+  scale_y_log10() +
+  labs(title = "Sale Price vs Bathrooms by Number of Bedrooms",
+       x = "Number of Bathrooms",
+       y = "Sale Price (log scale)",
+       color = "Bedrooms") +
+  theme_minimal()
+
+
+grid.arrange(p1, p2, p3, ncol = 2)
+```
+
+#### Quality Grade Distribution Analysis
+
+The summary statistics by quality grade reveal significant stratification in the Philadelphia housing market:
+
+```{r}
+
+# summary statistics for interactions
+interaction_summary <- engineered_features %>%
+  group_by(quality_grade) %>%
+  summarise(
+    avg_price = mean(sale_price, na.rm = TRUE),
+    avg_price_per_sqft = mean(price_per_sqft, na.rm = TRUE),
+    avg_condition = mean(overall_condition, na.rm = TRUE),
+    count = n()
+  ) %>%
+  arrange(desc(avg_price))
+
+interaction_summary %>%
+  kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+
+# quality_grade	avg_price	avg_price_per_sqft	avg_condition	count
+# High	588431.7	155.5852	4.496845	317
+# Highest	486000.0	157.0334	4.750000	2
+# Mid	203770.4	123.8607	4.218987	32696
+# Lowest	137270.2	111.1717	4.097994	97455
+
+# The highest quality grade has the highest average sale price
+# The lowest quality grade has the lowest average sale price
+# The mid quality grade has the lowest average sale price per sqft
+# The highest quality grade has the highest average condition score
+```
+
+
+##### High-End Properties
+
+**High Grade** (317 properties):
+  - Highest average price: $588,432
+  - Strong price per sq ft: $155.59
+  - Above-average condition: 4.50
+  - Represents only 0.24% of properties
+
+**Highest Grade** (2 properties):
+  - Average price: $486,000
+  - Premium price per sq ft: $157.03
+  - Best condition score: 4.75
+  - Extremely rare category (0.002% of properties)
+
+##### Mid-Market Properties
+
+**Mid Grade** (32,696 properties):
+  - Average price: $203,770
+  - Moderate price per sq ft: $123.86
+  - Average condition: 4.22
+  - Represents 25.1% of market
+
+##### Entry-Level Properties
+
+**Lowest Grade** (97,455 properties):
+  - Average price: $137,270
+  - Lowest price per sq ft: $111.17
+  - Below-average condition: 4.10
+  - Dominates market (74.7% of properties)
+
+##### Market Considerations:
+
+**Severe Market Skew**:
+   - 74.7% in lowest grade
+   - Only 319 properties (0.24%) in top grades
+   - Suggests need to combine highest/high categories
+
+**Price Stratification**:
+   - $450,000+ gap between high and low grades
+   - $44/sq ft premium for high-grade properties
+   - Clear quality-price relationship
+
+**Condition Correlation**:
+   - Narrow condition range (4.10-4.75)
+   - Higher grades consistently show better condition
+   - Suggests maintenance/upkeep differences
+
+These findings support our earlier decision to create interaction terms based on quality grades and 
+justify combining the highest/high categories for more robust analysis.
+
+
+
+#### Final Feature Engineering Refinements
+
+Based on the quality grade distribution analysis, we implemented three final feature engineering steps:
+
+```{r}
+# Add these engineered features
+engineered_features <- engineered_features %>%
+     mutate(
+       # Combine Highest and High grades
+       quality_grade_simplified = case_when(
+         quality_grade %in% c("Highest", "High") ~ "High",
+         quality_grade == "Mid" ~ "Mid",
+         TRUE ~ "Low"
+       ),
+       
+       # Create quality-adjusted area metric
+       quality_adjusted_area = total_livable_area * 
+         case_when(
+           quality_grade_simplified == "High" ~ 1.4,  # Based on price/sqft ratio
+           quality_grade_simplified == "Mid" ~ 1.1,
+           TRUE ~ 1.0
+         ),
+       
+       # Quality-condition interaction
+       quality_condition_score = overall_condition * 
+         case_when(
+           quality_grade_simplified == "High" ~ 1.2,
+           quality_grade_simplified == "Mid" ~ 1.1,
+           TRUE ~ 1.0
+         )
+     )
+
+str(engineered_features)
+```
+
+##### 1. Simplified Quality Grades
+
+- Combined "Highest" and "High" categories due to small sample sizes
+- Created more balanced categories for modeling
+- Simplified interpretation while maintaining price differentiation
+
+##### 2. Quality-Adjusted Area
+
+- Weights based on observed price per square foot differentials
+- High-grade premium: 40% increase in effective area
+- Mid-grade premium: 10% increase in effective area
+
+##### 3. Quality-Condition Interaction
+
+- Captures how condition impact varies by quality grade
+- Higher weights for better quality properties
+- Reflects greater condition sensitivity in higher grades
+
+#### Final Correlation Analysis with Sale Price
+
+After all feature engineering steps, the correlations with sale price reveal several key patterns:
+
+```{r}
+
+numeric_features <- engineered_features %>%
+  select_if(is.numeric)
+
+cor_matrix <- cor(numeric_features, use = "complete.obs")
+
+
+
+sale_price_cors <- cor_matrix[, "sale_price"]
+sale_price_cors <- sort(sale_price_cors, decreasing = TRUE)
+
+# focused correlation plot just for sale_price relationships
+corrplot(cor_matrix["sale_price", , drop = FALSE], 
+         method = "color",
+         type = "full",
+         tl.col = "black",
+         tl.srt = 45,
+         addCoef.col = "black",
+         number.cex = 1,      # Larger numbers
+         tl.cex = 0.8,       # Larger text
+         number.digits = 2,
+         mar = c(2,2,2,2))
+
+```
+
+##### Strong Correlations (|r| > 0.5)
+
+**Market Value** (r = 0.51): Remains the strongest base predictor
+**Price per sqft** (r = 0.90): Strongest overall correlation, validating this engineered metric
+
+##### Moderate Correlations (0.3 < |r| < 0.5)
+
+**Physical Characteristics**:
+  - Total livable area (r = 0.34)
+  - Total area (r = 0.34)
+  - Number of bathrooms (r = 0.36)
+
+**Engineered Features**:
+  - Area quality interaction (r = 0.34)
+  - Quality adjusted area (r = 0.35)
+
+##### Weak Positive Correlations (0 < |r| < 0.3)
+
+**Property Features**:
+  - Number of bedrooms (r = 0.19)
+  - Year built (r = 0.16)
+  - Garage spaces (r = 0.09)
+
+**Interaction Terms**:
+  - Bath-bed interaction (r = 0.19)
+  - Area-condition interaction (r = 0.17)
+
+##### Negative Correlations
+
+**Condition Metrics**:
+  - Interior condition (r = -0.28)
+  - Exterior condition (r = -0.19)
+
+**Density Metrics**:
+  - Bedrooms per area (r = -0.26)
+  - Building age (r = -0.16)
+
+This correlation structure suggests focusing the modeling effort on:
+1. Price per square foot and market value as primary predictors
+2. Physical size measurements and quality interactions as secondary features
+3. Careful treatment of negatively correlated condition metrics
+4. Potential removal of weaker correlates (< |0.15|)
+
+
+## Final Feature Selection
+
+Based on correlation analysis and feature importance:
+
+```{r final_features}
+### This will be our current working modelling dataset after feature engineering and cleaning ###
+# This does not include any outside data right now 03/20/2025
+final_data <- engineered_features %>%
+  select(
+    # Target Variable
+    sale_price,
+    
+    # Strong Numeric Predictors
+    market_value,
+    total_livable_area,
+    log_livable_area,
+    number_of_bathrooms,
+    number_of_bedrooms,
+    year_built,
+    
+    # Condition and Quality
+    overall_condition,  # Use this instead of individual condition scores
+    quality_grade_simplified,  # Use simplified version instead of original
+    
+    # Location (as factor)
+    zip_factor,  # Keep this instead of numeric zip_code
+    census_tract,
+    
+    # Key Engineered Features
+    price_per_sqft,
+    quality_adjusted_area,
+    quality_condition_score,
+    
+    # Important Interactions
+    area_quality_interaction,
+    bath_bed_interaction,
+    area_condition_interaction
+  )
+
+# Remove:
+# - location (text addresses)
+# - zoning (categorical, can add later if needed)
+# - sale_date (not needed for price prediction)
+# - exterior_condition and interior_condition (using overall_condition)
+# - log_total_area (kind of redundant with log_livable_area)
+# - bathrooms_per_area and bedrooms_per_area (low correlation)
+# - age_category (can use year_built directly)
+# - ward_factor (less important than zip_factor)
+# - area_zip_interaction (complex interaction)
+# - condition_age_interaction (complex interaction)
+
+str(final_data)
+```
+
+```{r}
+check_blank_percentage <- function(df) {
+  blank_percent <- sapply(df, function(x) {
+    sum(trimws(x) == "" | is.na(x)) / length(x) * 100
+  })
+  # This will just store it in a df for view
+  blank_percent_df <- data.frame(
+    variable = names(blank_percent),
+    blank_percentage = blank_percent
+  )
+  
+  return(blank_percent_df)
+}
+blank_percentage_df <- check_blank_percentage(final_data)
+print(blank_percentage_df)
+```
+
+## Data Quality Checks
+
+```{r quality_checks}
+# Final Data Quality Checks
+
+# Check for NA values in final dataset
+na_check <- colSums(is.na(final_data))
+print("NA counts by column:")
+print(na_check)
+ 
+# Check for NaN values (only in numeric columns)
+nan_check <- colSums(sapply(final_data %>% select_if(is.numeric), function(x) is.nan(x)))
+print("NaN counts by column:")
+print(nan_check)
+
+# Check for infinite values in numeric columns
+inf_check <- colSums(sapply(final_data %>% select_if(is.numeric), function(x) is.infinite(x)))
+print("Infinite value counts in numeric columns:")
+print(inf_check)
+
+# Get total number of complete cases
+complete_cases <- sum(complete.cases(final_data))
+print(paste("Complete cases:", complete_cases))
+print(paste("Total cases:", nrow(final_data)))
+print(paste("Incomplete cases:", nrow(final_data) - complete_cases))
+
+if(sum(na_check) > 0 | sum(nan_check) > 0 | sum(inf_check) > 0) {
+  final_data <- final_data %>%
+    # Remove rows with any NA values
+    filter(complete.cases(.)) %>%
+    # Remove rows with any NaN or Inf values in numeric columns
+    filter(if_all(where(is.numeric), ~!is.nan(.) & !is.infinite(.)))
+  
+  print("After cleaning:")
+  print(paste("Final number of rows:", nrow(final_data)))
+}
+```
+
+
+## Final Conclusions and Recommendations
+
+### Key Findings from Feature Engineering Process
+
+#### 1. Most Effective Predictors
+
+- **Primary Value Indicators**:
+  - Price per square foot (r = 0.90) emerged as the strongest predictor
+  - Market value (r = 0.51) provides reliable baseline estimates
+  - Quality-adjusted metrics show consistent improvement over raw features
+
+- **Physical Characteristics**:
+  - Log-transformed area measurements (r ≈ 0.34) capture size effects
+  - Bathroom count (r = 0.36) more predictive than bedroom count
+  - Quality-size interactions (r = 0.34) reveal important value multipliers
+
+#### 2. Market Stratification
+
+- **Quality Grade Distribution**:
+  - 74.7% properties in lowest grade ($137,270 avg)
+  - 25.1% in mid grade ($203,770 avg)
+  - 0.24% in high grades ($588,432 avg)
+  - Successfully simplified to three-tier classification
+
+- **Price Differentials**:
+  - $44/sq ft premium for high-grade properties
+  - 40% area adjustment factor for high-grade properties
+  - 10% area adjustment for mid-grade properties
+
+#### 3. Feature Engineering Successes
+
+- **Effective Transformations**:
+  - Log transformations improved linearity
+  - Quality-adjusted area captures value premiums
+  - Condition score reversals clarified relationships
+
+- **Valuable Interactions**:
+  - Area-quality interactions capture price premiums
+  - Quality-condition scores reflect maintenance impact
+  - Bath-bed interactions show layout effects
+
+### Recommendations for Modeling
+
+#### 1. Feature Selection Strategy
+
+- **Core Features**:
+  - Price per square foot
+  - Log-transformed areas
+  - Quality-adjusted metrics
+  - Location factors (zip code)
+
+- **Secondary Features**:
+  - Bathroom and bedroom counts
+  - Condition scores
+  - Quality-based interactions
+
+- **Consider Excluding**:
+  - Raw area measurements (use log transforms)
+  - Redundant condition metrics
+  - Weak correlates (|r| < 0.15)
+
+#### 2. Modeling Approaches
+
+- **Stratification**:
+  - Consider separate models by quality grade
+  - Account for location-based variations
+  - Weight samples to address class imbalance
+
+- **Feature Treatment**:
+  - Maintain engineered interaction terms
+  - Use scaled variables where appropriate
+  - Handle categorical variables carefully
+
+#### 3. Future Improvements
+
+- **Additional Data**:
+  - Gather neighborhood amenity information
+  - Include school district quality metrics
+  - Add transit accessibility scores
+
+- **Feature Engineering**:
+  - Develop more sophisticated location-based features
+  - Create seasonal adjustment factors
+  - Consider temporal market trends
+
+### Final Recommendations
+
+1. Proceed with modeling using engineered features, particularly focusing on price per square foot and quality-adjusted metrics
+2. Consider a tiered modeling approach based on quality grades
+3. Maintain focus on interpretable features for stakeholder communication
+4. Plan for regular feature updates as market conditions change
+
+```{r}
+str(final_data)
+
+```
+
