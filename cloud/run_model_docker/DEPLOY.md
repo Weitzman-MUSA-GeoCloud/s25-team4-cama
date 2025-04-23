@@ -8,13 +8,13 @@ gcloud run jobs deploy run-model `
   --service-account data-pipeline-user@musa5090s25-team4.iam.gserviceaccount.com `
   --cpu 4 `
   --memory 4Gi `
-  --region us-central1 `
+  --region us-east4 `
   --source .
 ```
 
 ## Execute job
 ```shell
-gcloud run jobs execute run-model --region us-central1
+gcloud run jobs execute run-model --region us-east4
 ```
 
 #### OLD:Only needed once when creating new job

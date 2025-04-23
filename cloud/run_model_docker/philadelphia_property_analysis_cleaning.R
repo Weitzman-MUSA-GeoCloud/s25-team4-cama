@@ -6,8 +6,6 @@ library(dplyr)
 library(lubridate)
 
 pud <- read.csv("opa_properties_public.csv")
-options(scipen = 999)
-str(pud)
 
 # Date-related cleaning and feature engineering
 pud <- pud %>%
@@ -88,15 +86,20 @@ model_data <- cleaned_features %>%
   filter(complete.cases(.)) %>%
   filter(if_all(where(is.numeric), ~!is.nan(.) & !is.infinite(.)))
 
+model <- lm(sale_price ~ . - market_value, data = model_data)
+
+
+# predictions for lm
+model_data$prediction <- round(predict(model, model_data))
+
 str(model_data)
 
-
 # Final Feature Selection
-final_data <- cleaned_features %>%
+final_data <- model_data %>%
   select(
     # Identifier and Target Variable only
     property_id,
-    price = sale_price
+    price = prediction
   )
 
   # Final Data Quality Checks
