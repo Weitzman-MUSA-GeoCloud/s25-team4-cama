@@ -12,15 +12,30 @@ DIR_NAME = pathlib.Path(__file__).parent
 
 # Main function to create histogram
 @functions_framework.http
-def get_tax_year_assessment_bins_log(request):
-    result_rows = get_sql('tax_year_assessment_bins_log.sql')
+def get_tax_year_assessment_bins(request):
 
+    if (request.args.get('type') == 'model'):
+        print("Getting Model Predictions")
+
+        sql_file = 'model_assessment_bins.sql'
+    else:
+        print("Getting Tax Year Assessments")
+
+        sql_file = 'tax_year_assessment_bins_log.sql'
+        print("Filtering for year: " + request.args.get('year'))
+
+    result_rows = get_sql(
+        sql_file,
+        {
+            'filter_year': request.args.get('year'),
+        })
+    
     # Convert BQ result set iterator to array of json objects
     hist_data = [{
           "tax_year": row["tax_year"],
           "lower_bound": row["lower_bound"],
           "upper_bound": row["upper_bound"],
-          "quantity": row["quantity"]
+          "property_count": row["property_count"]
         } for row in result_rows]
 
     print("Created and Output JSON for historical data")
@@ -31,7 +46,7 @@ def get_tax_year_assessment_bins_log(request):
 
 
 # Generic function to run sql file
-def get_sql(sql_filename):
+def get_sql(sql_filename, arguments):
     # Read the SQL file specified in the request
     sql_path = DIR_NAME / 'sql' / sql_filename
 
@@ -41,8 +56,10 @@ def get_sql(sql_filename):
         return f'File {sql_path} not found', 404
 
     # Read the SQL file
+    # Read the SQL file
     with open(sql_path, 'r', encoding='utf-8') as sql_file:
-        sql_query = sql_file.read()
+        sql_query_template = sql_file.read()
+        sql_query = render_template(sql_query_template, arguments)
 
     # Run the SQL query
     bigquery_client = bigquery.Client()
@@ -50,3 +67,9 @@ def get_sql(sql_filename):
 
     print(f'Ran the SQL file {sql_path}')
     return result
+
+
+# Generic function to fill in parameters into sql script
+def render_template(sql_query_template, context):
+    clean_template = sql_query_template.replace('${', '{')
+    return clean_template.format(**context)
