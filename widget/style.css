@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@600&family=Open+Sans&display=swap');
+
+body {
+  margin: 0;
+  font-family: 'Open Sans', sans-serif;
+  background: #f5f5f5;
+  color: #222;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  color: #222;
+}
+
+.widget-container {
+  background: #fff;
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+.widget-header { display: flex; flex-direction: column; gap: .75rem; }
+.widget-header h2 { font-size: 1.25rem; margin: 0; }
+
+.opa-input { display: flex; gap: .5rem; align-items: center; }
+.opa-input input {
+  flex: 1; padding: .5rem; border: 1px solid #ccc; border-radius: 4px;
+}
+.opa-input button {
+  background: #0f4d90; color: #fff; padding: .5rem 1rem; border: none;
+  border-radius: 4px; cursor: pointer; transition: opacity .2s;
+}
+.opa-input button:disabled { opacity: .6; cursor: wait; }
+
+.valuation-summary { margin-top: 2rem; }
+#valuation-chart { width: 100%; height: 300px; }
+#valuation-table-container { margin-top: 1.5rem; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: .75rem; border-bottom: 1px solid #ddd; text-align: left; }
+th { background: #f0f0f0; }
