@@ -1,0 +1,489 @@
+/* Mass Appraisal Reviewer - styles.css */
+
+/* Base styling */
+html, body {
+    height: 100%;
+  }
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+    background: #f8f9fb;
+    color: #2a2a2a;
+}
+
+
+/* Panel layout */
+.left-panel {
+    width: 45%;
+    padding: 40px;
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    overflow-y: auto;
+    background: white;
+    border-right: none;
+    box-shadow: 4px 0 12px rgba(0,0,0,0.05);
+}
+
+.right-panel {
+    width: 55%;
+    /* make this the positioning context for #map */
+    position: relative;
+    height: 100%;   /* <-- inherits from body’s 100vh */
+}
+  
+
+
+/* Header styling */
+.header {
+    margin-bottom: 30px;
+}
+
+.header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 10px;
+}
+
+
+/* Summary styling */
+.summary {
+    font-size: 16px;
+    line-height: 1.7;
+    color: #444;
+}
+
+
+.highlight {
+    font-weight: bold;
+    color: #7a5c4f;
+}
+
+/* Chart container styling */
+.chart-container {
+    height: 320px;
+    margin-top: 40px;
+    margin-bottom: 40px;
+    padding-bottom: 10px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.04);
+    padding: 20px;
+    position: relative;
+    overflow: visible; 
+}
+
+.chart-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+/* Map styling */
+#map {
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
+}
+
+/* Legend styling */
+.legend {
+    background: #ffffff;
+    padding: 16px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    font-size: 14px;
+    border: 1px solid #eee;
+}
+
+.legend-title {
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.checkbox-container label {
+    margin-left: 5px;
+    color: #333;
+    font-weight: 500;
+}
+
+.checkbox-container input[type="checkbox"]:hover {
+    cursor: pointer;
+}
+.checkbox-container label:hover {
+    color: #1a73e8;
+}
+
+.legend-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+.legend-close {
+cursor: pointer;
+font-size: 1em;
+line-height: 1;
+padding: 0 4px;
+color: #888;
+}
+
+.legend-close:hover {
+color: #444;
+}
+
+.legend-toggle-button {
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 4px 8px !important;        
+    font-size: 25px;                   
+    line-height: 1.2;
+    color: #2b1f06 !important; /* dark brown */                   
+    text-decoration: none;       /* remove underlines */
+    cursor: pointer;
+  }
+  
+  /* On hover, you might still want a little feedback */
+  .legend-toggle-button:hover {
+    background: rgba(0,0,0,0.05) !important;
+  }
+  
+  /* And if Leaflet is injecting extra selectors… ensure pointer events */
+  .legend-toggle-button.leaflet-control {
+    pointer-events: auto;
+  }
+  
+  .legend-toggle-button:active {
+    background: #e0e0e0;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  
+  
+  
+/* Property tooltip styling */
+.tooltip {
+    background: rgb(243, 241, 241);
+    border: 1px solid #ddd;
+    padding: 5px;
+    border-radius: 5px;
+    min-width: 200px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* Custom popup styling */
+.custom-popup .leaflet-popup-content-wrapper {
+    border-radius: 6px;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.2);
+}
+
+.custom-popup .leaflet-popup-content {
+    margin: 12px;
+    line-height: 1.5;
+}
+
+.custom-popup .leaflet-popup-tip-container {
+    margin-top: -1px;
+}
+
+.custom-popup .leaflet-popup-tip {
+    box-shadow: 0 3px 14px rgba(0,0,0,0.2);
+}
+
+.tooltip h3 {
+    margin-bottom: 8px;
+    font-size: 16px;
+    color: #333;
+}
+
+.tooltip p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.address-search-control {
+    padding: 6px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .address-search-control input {
+    width: 200px;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  .autocomplete-list {
+    position: absolute;
+    top: 36px;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background: white;
+    border: 1px solid #ccc;
+    max-height: 150px;
+    overflow-y: auto;
+    z-index: 1000;
+  }
+  .autocomplete-list li {
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  .autocomplete-list li:hover {
+    background: #f0f0f0;
+  }
+  
+
+.address-search-control button {
+    padding: 6px 10px;
+    background-color: #c1ae9b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.address-search-control button:hover {
+    background-color: #d7c9b3;
+}
+
+body.dark .address-search-control {
+    background-color: #2a2a2a;
+    box-shadow: 0 2px 8px rgba(255,255,255,0.08);
+}
+
+body.dark .address-search-control input {
+    background-color: #1e1e1e;
+    color: white;
+    border: 1px solid #555;
+}
+
+body.dark .address-search-control button {
+    background-color: #d7c9b3;
+}
+
+
+/* Zoom-in instruction styling */
+.zoom-instruction {
+    margin-top: 16px;
+    padding: 12px 20px;
+    background-color: #f1f3f5;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  .zoom-instruction p {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #3c2b0b;
+    text-align: center;
+    /* text-transform: uppercase; */
+    letter-spacing: 0.05em;
+  }
+  
+.search-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+
+.legend .metric-item {
+    padding: 4px 6px;
+    margin: 2% 0;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background-color 0.2s, color 0.2s;
+    font-size: 0.9rem;
+    font-weight: bold;
+  }
+  
+  /* Hover state */
+  .legend .metric-item:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+  
+  /* Active (selected) state */
+  .legend .metric-item.active {
+    background-color: #b68f6e;
+    color: #f5f5f5;
+  }
+  
+/* Allow clicks inside the legend control */
+.leaflet-control .legend {
+    pointer-events: auto;
+  }
+  
+  /* Make each metric-item fill its container and be easy to click */
+  .legend .metric-item {
+    display: block;
+    width: 100%;
+  }
+  
+
+/* Responsive styling */
+@media screen and (max-width: 1024px) {
+    body {
+        flex-direction: column;
+    }
+    
+    .left-panel, .right-panel {
+        width: 100%;
+    }
+    
+    .right-panel {
+        height: 50vh;
+    }
+}
+
+/* Bar chart styling */
+.chart-bar {
+    fill: rgba(100, 100, 100, 0.5);
+    stroke: rgba(100, 100, 100, 1);
+    stroke-width: 1px;
+}
+
+/* Custom map markers */
+.property-marker {
+    border-radius: 50%;
+    border: 1px solid #333;
+    width: 10px;
+    height: 10px;
+}
+
+
+/* Dark mode styling */
+.toggle-container {
+    position: absolute;
+    left: 20px;   /* adjust horizontal inset */
+    bottom: 20px; /* adjust vertical inset */
+    margin: 0;    /* reset any existing margins */
+  }
+
+/* container */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 30px;
+  }
+  /* hide the checkbox */
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+  /* track */
+  .switch .slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;          /* shorthand for top/right/bottom/left = 0 */
+    background: #ccc;
+    border-radius: 30px;
+    transition: background 0.3s;
+  }
+  /* the round knob */
+  .switch .slider::before {
+    content: "";
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    top: 2px;
+    left: 2px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.3s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  /* sun & moon icons */
+  .switch .slider .icon {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+    font-size: 16px;
+  }
+  .switch .slider .sun {
+    left: 6px;
+    color: #f1c40f;
+  }
+  .switch .slider .moon {
+    right: 6px;
+    color: #34495e;
+  }
+  
+  /* checked state: move knob, darken track */
+  .switch input:checked + .slider {
+    background: #666;
+  }
+  .switch input:checked + .slider::before {
+    transform: translateX(30px);
+  }
+  
+
+
+body.dark {
+    background-color: #121212;
+    color: #e0e0e0;
+}
+
+body.dark .left-panel {
+    background-color: #1e1e1e;
+    box-shadow: none;
+}
+
+body.dark .header h1,
+body.dark .summary,
+body.dark .chart-title,
+body.dark .toggle-label {
+    color: #f1f1f1;
+}
+
+body.dark .chart-container {
+    background-color: #2a2a2a;
+    box-shadow: none;
+}
+
+body.dark .legend {
+    background-color: #2b2b2b;
+    color: #f1f1f1;
+    border-color: #444;
+}
+
+body.dark .checkbox-container label {
+    color: #ddd;
+}
+
+/* Color scale for different metrics */
+.value-low { background-color: #b3d9ff; }
+.value-medium { background-color: #6699ff; }
+.value-high { background-color: #0044cc; }
+
+.change-negative { background-color: #b3d9ff; }
+.change-neutral { background-color: #f2f2f2; }
+.change-positive { background-color: #ff9999; }
+.change-high-positive { background-color: #ff3333; }
