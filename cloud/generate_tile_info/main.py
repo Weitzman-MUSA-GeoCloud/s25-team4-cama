@@ -42,6 +42,7 @@ def generate_tile_info(request):
           "type": "Feature",
           "geometry": json.loads(row["geometry"]),
           "properties": {
+            "property_id": row["property_id"],
             "address": row["address"],
             "current_assessed_value": round(row["current_assessed_value"]),
             "tax_year_assessed_value": round(row["tax_year_assessed_value"])
@@ -50,7 +51,7 @@ def generate_tile_info(request):
     
     property_tiles = {
         "type": "FeatureCollection",
-        "name": "PropertyTiles",
+        "name": "property_tile_info",
         "crs": {"type": "name", "properties": {"name": "urn:ogc:def:crs:OGC:1.3:CRS84"}},
         "features": tile_features
     }
