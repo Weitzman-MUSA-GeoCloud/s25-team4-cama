@@ -1,0 +1,84 @@
+main:
+  params: [input]
+  steps:
+    - parallelStep:
+        parallel:
+          branches:
+            - opaProperties:
+                steps:
+                  - extractOpaProperties:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/extract_phl_opa_properties'
+                        auth:
+                          type: OIDC
+                  - prepareOpaProperties:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/prepare_phl_opa_properties'
+                        auth:
+                          type: OIDC
+                  - generateExtTableOpaProperties:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_ext_table_phl_opa_properties'
+                        auth:
+                          type: OIDC
+                  - generateCoreTableOpaProperties:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_core_table_phl_opa_properties'
+                        auth:
+                          type: OIDC
+            - pwdParcels:
+                steps:
+                  - extractPwdParcels:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/extract_phl_pwd_parcels'
+                        auth:
+                          type: OIDC
+                  - preparePwdParcels:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/prepare_phl_pwd_parcels'
+                        auth:
+                          type: OIDC
+                  - generateExtTablePwdParcels:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_ext_table_phl_pwd_parcels'
+                        auth:
+                          type: OIDC
+                  - generateCoreTablePwdParcels:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_core_table_phl_pwd_parcels'
+                        auth:
+                          type: OIDC
+            - opaAssessments:
+                steps:
+                  - extractOpaAssessments:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/extract_phl_opa_assessments'
+                        auth:
+                          type: OIDC
+                  - prepareOpaAssessments:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/prepare_phl_opa_assessments'
+                        auth:
+                          type: OIDC
+                  - generateExtTableOpaAssessments:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_ext_table_phl_opa_assessments'
+                        auth:
+                          type: OIDC
+                  - generateCoreTableOpaAssessments:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_core_table_phl_opa_assessments'
+                        auth:
+                          type: OIDC
