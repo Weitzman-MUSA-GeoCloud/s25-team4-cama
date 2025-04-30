@@ -30,6 +30,17 @@ main:
                         url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_core_table_phl_opa_properties'
                         auth:
                           type: OIDC
+                  - generateCurrentAssessmentsModelTrainingData:
+                      call: http.post
+                      args:
+                        url: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/generate_current_assessments_model_training_data'
+                        auth:
+                          type: OIDC
+                  - runModel:
+                      call: googleapis.run.v1.namespaces.jobs.run
+                      args:
+                        name: 'namespaces/musa5090s25-team4/jobs/run-model'
+                        location: us-east4
             - pwdParcels:
                 steps:
                   - extractPwdParcels:
