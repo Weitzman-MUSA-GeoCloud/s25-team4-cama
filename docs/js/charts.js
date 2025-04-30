@@ -67,7 +67,7 @@ async function fetchHistogramBins(metric) {
       url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?type=abs_difference';
       break;
     case 'percent-change':
-      url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?type=abs_difference';
+      url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?type=per_difference';
       break;
     default:
       throw new Error(`Unknown metric: ${metric}`);
@@ -76,6 +76,19 @@ async function fetchHistogramBins(metric) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch bins: ${res.statusText}`);
   return res.json();  // expects [{ lower_bound, upper_bound, property_count, … }, …]
+}
+
+/**
+ * Format label based on the metric type
+ */
+function formatLabel(lowerBound, upperBound, metric) {
+  if (metric === 'percent-change') {
+    // Format percentage values
+    return `${lowerBound.toFixed(1)}%–${upperBound.toFixed(1)}%`;
+  } else {
+    // Format currency values
+    return `${formatCurrency(lowerBound)}–${formatCurrency(upperBound)}`;
+  }
 }
 
 /**
@@ -182,9 +195,8 @@ export async function updateChartData(chartId) {
   try {
     const bins = await fetchHistogramBins(chartId);
     // Build labels & counts
-    const labels = bins.map(b =>
-      // show lower→upper
-      `${formatCurrency(b.lower_bound)}–${formatCurrency(b.upper_bound)}`
+    const labels = bins.map(b => 
+      formatLabel(b.lower_bound, b.upper_bound, chartId)
     );
     const counts = bins.map(b => b.property_count);
 

@@ -201,20 +201,21 @@ export function setupVectorTiles(map, activeCharts) {
   }
 
   // Helper function for percent change
+  // Helper function for percent change with revised breakpoints
   function getPercentChangeColor(pct, colorRamp) {
-    if (pct < -10) {
-      return colorRamp[0];
-    } else if (pct < -5) {
-      return colorRamp[1];
-    } else if (pct < 5) {
-      return colorRamp[2];
-    } else if (pct < 10) {
-      return colorRamp[3];
+  // Updated breakpoints to better match the data distribution
+    if (pct < -60) {
+      return colorRamp[0];  // Significant decrease
+    } else if (pct < -20) {
+      return colorRamp[1];  // Moderate decrease
+    } else if (pct < 20) {
+      return colorRamp[2];  // Minimal change
+    } else if (pct < 60) {
+      return colorRamp[3];  // Moderate increase
     } else {
-      return colorRamp[4];
+      return colworRamp[4];  // Significant increase
     }
   }
-
   // Initialize vector tile layer
   vectorTileLayer = createOrUpdateVectorLayer();
 
