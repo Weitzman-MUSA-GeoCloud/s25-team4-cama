@@ -19,3 +19,9 @@ gcloud functions deploy get_tax_year_assessment_bins `
 --trigger-http `
 --allow-unauthenticated
 ```
+
+#### Execute cloud function: get_tax_year_assessment_bins
+```shell
+gcloud functions call get_tax_year_assessment_bins `
+--region=us-east4
+```
