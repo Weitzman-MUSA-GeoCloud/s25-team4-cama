@@ -21,16 +21,20 @@ def generate_widget_data(request):
         })
     
     # Convert BQ result set iterator to array of json objects
-    hist_data = [{
+    data = [{
+          "property_id": row["property_id"],
+          "address": row["address"],
           "year": row["year"],
           "market_value": row["market_value"],
           "land_taxable": row["land_taxable"],
-          "improvement_taxable": row["improvement_taxable"]
+          "improvement_taxable": row["improvement_taxable"],
+          "land_exempt": row["land_exempt"],
+          "improvement_exempt": row["improvement_exempt"]
         } for row in result_rows]
 
     print("Created and Output JSON for historical data")
 
-    return hist_data, 200, {'Access-Control-Allow-Origin': '*',
+    return data, 200, {'Access-Control-Allow-Origin': '*',
                             'Access-Control-Allow-Methods': '*',
                             'Access-Control-Allow-Headers': '*'}
 
