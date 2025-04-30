@@ -64,10 +64,10 @@ async function fetchHistogramBins(metric) {
       url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?year=2024&scale=log';
       break;
     case 'absolute-change':
-      url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?year=2024&scale=log';
+      url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?type=abs_difference';
       break;
     case 'percent-change':
-      url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?year=2024&scale=log';
+      url = 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?type=abs_difference';
       break;
     default:
       throw new Error(`Unknown metric: ${metric}`);

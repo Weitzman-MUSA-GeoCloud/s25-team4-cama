@@ -20,14 +20,14 @@ export const chartConfig = [
       title: 'Change (%) in assessment since tax year 2024',
       chartType: 'percent-change-chart',
       chartTitle: 'Percent change since last assessment…',
-      apiUrl: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_pct_change_bins?year=2024&scale=log'
+      apiUrl: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?type=per_difference'
     },
     {
       id: 'absolute-change',
       title: 'Change ($) in assessment since tax year 2024',
       chartType: 'absolute-change-chart',
       chartTitle: 'Absolute change in assessment…',
-      apiUrl: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_absolute_change_bins?year=2024&scale=log'
+      apiUrl: 'https://us-east4-musa5090s25-team4.cloudfunctions.net/get_tax_year_assessment_bins?type=abs_difference'
     }
   ];
   
