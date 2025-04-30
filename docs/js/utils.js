@@ -3,8 +3,75 @@
 import { updateAllCharts } from './charts.js';
 
 /**
+ * Get color based on value and quantile breakpoints with specific color ramp
+ */
+export function getColorByQuantile(value, colorRamp) {
+  // Quantile breakpoints as specified
+  const breakpoints = [100000, 146900, 192900, 248900, 351400, 10000000];
+  
+  // Find which quantile the value belongs to
+  if (value < breakpoints[0]) {
+    return colorRamp[0];
+  } else if (value < breakpoints[1]) {
+    return colorRamp[0];
+  } else if (value < breakpoints[2]) {
+    return colorRamp[1];
+  } else if (value < breakpoints[3]) {
+    return colorRamp[2];
+  } else if (value < breakpoints[4]) {
+    return colorRamp[3];
+  } else {
+    return colorRamp[4];
+  }
+}
+
+/**
+ * Get color based on specific metric type
+ */
+export function getColorForMetric(value, metricType) {
+  // Define color ramps for each metric
+  const colorRamps = {
+    'current-values': ["#ebe6dfff", "#c3beb9ff", "#9cadb4ff", "#40a7b9ff", "#007f99ff"],
+    'previous-values': ["#e9d7b8ff", "#e8c9b3ff", "#c59ca4ff", "#a48d9eff", "#606d94ff"],
+    'absolute-change': ["#3900b3ff", "#714dbfff", "#9e6b90ff", "#cf9270ff", "#ebb698ff"],
+    'percent-change': ["#6690ffff", "#526aadff", "#423b38ff", "#945e4cff", "#ff9573ff"]
+  };
+
+  // Get the appropriate color ramp
+  const colorRamp = colorRamps[metricType];
+
+  // Handle percent change differently
+  if (metricType === 'percent-change') {
+    return getColorForPercentChangeWithRamp(value, colorRamp);
+  }
+  
+  return getColorByQuantile(value, colorRamp);
+}
+
+/**
+ * For percent change using the blue and brown color ramp
+ */
+export function getColorForPercentChangeWithRamp(pct, colorRamp) {
+  // Define breakpoints for percentage change
+  // Assuming negative changes map to blue side, positive to brown side
+  if (pct < -10) {
+    return colorRamp[0];  // Most blue
+  } else if (pct < -5) {
+    return colorRamp[1];  // Medium blue
+  } else if (pct < 5) {
+    return colorRamp[2];  // Neutral
+  } else if (pct < 10) {
+    return colorRamp[3];  // Medium brown
+  } else {
+    return colorRamp[4];  // Most brown
+  }
+}
+
+/**
  * Normalize a value between 0–1 over [min, max], then
  * interpolate from blue (low) to red (high).
+ * NOTE: This is kept for backward compatibility but 
+ * not used for vector tile styling anymore.
  */
 export function getColorForValue(value, min, max) {
   const normalized = Math.min(Math.max((value - min) / (max - min), 0), 1);
@@ -15,6 +82,8 @@ export function getColorForValue(value, min, max) {
 
 /**
  * For percent-change: negative → bluish, positive → reddish.
+ * NOTE: This is kept for backward compatibility but
+ * not used for vector tile styling anymore.
  */
 export function getColorForPercentChange(pct) {
   if (pct < 0) {
@@ -27,7 +96,6 @@ export function getColorForPercentChange(pct) {
     return `rgb(${red}, 0, 0)`;
   }
 }
-
 
 /**
  * Format a number as USD currency with no decimals.
@@ -100,6 +168,11 @@ export function setupEventListeners(
 
       // 5) Fetch & redraw the histogram
       updateAllCharts(activeCharts);
+      
+      // 6) Update the color legend
+      if (window.updateColorLegend) {
+        window.updateColorLegend(metric);
+      }
     });
   });
 
